@@ -1,2 +1,31 @@
 x <- 5
 x
+#hello
+library(tidyverse)
+library(modelr)
+library(ggplot2)
+library(lubridate)
+library(psych)
+
+################################
+
+
+#Authors: Teckla Holmes Freya Amason Maria Strief
+
+#Math Modeling Contest 2026
+
+#Model based on averages to map out the following: 
+
+#Model the total annual energy cost for the data center if it operates 100,000 (or 
+#some other amount) racks at full capacity all year. (Note a 520 acre center has the capacity for almost 4 times that many racks)
+    #• The data center has 4,200,000 servers (42 servers per rack), each consuming an average of 450 W of power.
+    # The cooling system removes heat by evaporating water, where 1 liter of water can absorb approximately 2.26 MJ of heat during evaporation.
+    # The facility aims to keep the average internal temperature stable, meaning all heat generated must be removed.
+#• Model the relationship between the total electrical power consumption, total heat generated, and the volume of water needed per day.
+#• Calculate daily water usage in liters.
+#• Suppose the data center implements a load-shifting strategy that reduces rack usage 
+#by 20% during peak hours. Modify your model to estimate the new annual cost. 
+#Data centers can shift energy use by increasing or limiting time being used to train models.
+#• Analyze how water usage changes if the number of servers increases by 20% while 
+#each server’s power consumption decreases by 10% due to efficiency upgrades.
+#• Recommend how much should Meta be charged for energy and water usage. 

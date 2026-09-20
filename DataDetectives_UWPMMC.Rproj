@@ -26,19 +26,42 @@ library(psych)
 #• Analyze how water usage changes if the number of servers increases by 20% while 
 #each server’s power consumption decreases by 10% due to efficiency upgrades.
 #• Recommend how much Meta should be charged for energy and water usage. 
+###############################
 
 # Variable declaration
 
-servercount = 100000
-
+rackcount = 100000
 
 # Unit conversion 
-
-HOURS_PER_YEAR = 8760
+HIGH_CHARGE = .09272
+LOW_CHARGE = .03696
+AVG_CHARGE = .04940
 AVG_ELEC_PER_KWH = 0.094
+
+PUE = 1.45
+KW_PER_SERVER = .450
+SERVER_CAP = 1.0
+HOURS_PER_YEAR = 8760
+
 SERVERS_PER_RACK = 42
 BTUS_PER_KW = 3412
 BTUS_PER_MJ = 947.82
 MJ_PER_1L = 2.26
-PUE = 1.45
 
+
+
+########
+#Model the total annual energy cost for the data center if it operates 100,000 (or 
+#some other amount) racks at full capacity all year. 
+########
+
+#
+total_elec =  PUE * (rackcount * SERVERS_PER_RACK * SERVER_CAP * KW_PER_SERVER * HOURS_PER_YEAR)
+total_elec
+
+total_elec_Cost =  total_elec * AVG_ELEC_PER_KWH
+total_elec_Cost
+
+#######
+
+ 

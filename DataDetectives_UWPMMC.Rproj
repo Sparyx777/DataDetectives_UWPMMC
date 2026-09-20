@@ -64,4 +64,15 @@ total_elec_Cost
 
 #######
 
+#######
+#Calculate daily water usage in liters.
+#######
+# Per https://gdchillers.com/resources/data-centers/how-to-calculate-data-center-cooling-requirements-step-by-step 
+#We can assume that electricty consumption in IT puts out an equivalent amount of heat. 
+#Facility load ranges between 1.05 to 1.15 time for heat generation per source, so you would find IT load, and multiply by 1.1  
+# Find IT load per day. 
+
+total_heat_day = SITE_HEAT * (rackcount * SERVERS_PER_RACK * SERVER_CAP * KW_PER_SERVER) * HOURS_PER_DAY * BTUS_PER_KW
+total_heat_day
+
  

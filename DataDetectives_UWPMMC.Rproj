@@ -1,6 +1,3 @@
-x <- 5
-x
-#hello
 library(tidyverse)
 library(modelr)
 library(ggplot2)
@@ -28,4 +25,20 @@ library(psych)
 #Data centers can shift energy use by increasing or limiting time being used to train models.
 #• Analyze how water usage changes if the number of servers increases by 20% while 
 #each server’s power consumption decreases by 10% due to efficiency upgrades.
-#• Recommend how much should Meta be charged for energy and water usage. 
+#• Recommend how much Meta should be charged for energy and water usage. 
+
+# Variable declaration
+
+servercount = 100000
+
+
+# Unit conversion 
+
+HOURS_PER_YEAR = 8760
+AVG_ELEC_PER_KWH = 0.094
+SERVERS_PER_RACK = 42
+BTUS_PER_KW = 3412
+BTUS_PER_MJ = 947.82
+MJ_PER_1L = 2.26
+PUE = 1.45
+

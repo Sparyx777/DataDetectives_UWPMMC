@@ -1,3 +1,4 @@
+#hello
 library(tidyverse)
 library(modelr)
 library(ggplot2)
@@ -25,7 +26,9 @@ library(psych)
 #Data centers can shift energy use by increasing or limiting time being used to train models.
 #• Analyze how water usage changes if the number of servers increases by 20% while 
 #each server’s power consumption decreases by 10% due to efficiency upgrades.
-#• Recommend how much Meta should be charged for energy and water usage. 
+#• Recommend how much should Meta be charged for energy and water usage. 
+
+
 ###############################
 
 # Variable declaration
@@ -41,13 +44,24 @@ AVG_ELEC_PER_KWH = 0.094
 PUE = 1.45
 KW_PER_SERVER = .450
 SERVER_CAP = 1.0
+SERVER_RED_CAP = 0.8
 HOURS_PER_YEAR = 8760
+HOURS_PER_DAY = 24
+DAYS_IN_YEAR = 365.25
 
 SERVERS_PER_RACK = 42
 BTUS_PER_KW = 3412
 BTUS_PER_MJ = 947.82
 MJ_PER_1L = 2.26
+SITE_HEAT = 1.15
 
+WEEKDAYS = 5/7
+PEAKHOURS = 6/24#average between 8 hours for summer and 4 hours for winter
+REGHOURS = 11/24
+WKDY_LOWHOURS = 7/24
+HALFYEAR = .5
+LOW_RATE_HOURS = 7/24
+REG_RATE_HOURS = 17/24
 
 
 ########
@@ -56,13 +70,11 @@ MJ_PER_1L = 2.26
 ########
 
 #
-total_elec =  PUE * (rackcount * SERVERS_PER_RACK * SERVER_CAP * KW_PER_SERVER * HOURS_PER_YEAR)
+total_elec =  PUE * (rackcount * SERVERS_PER_RACK * SERVER_CAP * KW_PER_SERVER) * HOURS_PER_YEAR
 total_elec
 
 total_elec_Cost =  total_elec * AVG_ELEC_PER_KWH
 total_elec_Cost
-
-#######
 
 #######
 #Calculate daily water usage in liters.
@@ -75,4 +87,8 @@ total_elec_Cost
 total_heat_day = SITE_HEAT * (rackcount * SERVERS_PER_RACK * SERVER_CAP * KW_PER_SERVER) * HOURS_PER_DAY * BTUS_PER_KW
 total_heat_day
 
- 
+total_H20_Ls = total_heat_day / (BTUS_PER_MJ * MJ_PER_1L)
+total_H20_Ls
+
+total_elec_cost2 = total_elec *  (HALFYEAR( WEEKDAYS * PEAKHOURS * HIGH_CHARGE * SERVER_RED_CAP) + (WEEKDAYS * ) + () ) 
+                              +(HALFYEAR(WEEKDAYS*REGHOURS)()))

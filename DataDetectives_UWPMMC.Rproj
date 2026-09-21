@@ -1,4 +1,3 @@
-#hello
 library(tidyverse)
 library(modelr)
 library(ggplot2)
@@ -16,9 +15,9 @@ library(psych)
 
 #Model the total annual energy cost for the data center if it operates 100,000 (or 
 #some other amount) racks at full capacity all year. (Note a 520 acre center has the capacity for almost 4 times that many racks)
-    #• The data center has 4,200,000 servers (42 servers per rack), each consuming an average of 450 W of power.
-    # The cooling system removes heat by evaporating water, where 1 liter of water can absorb approximately 2.26 MJ of heat during evaporation.
-    # The facility aims to keep the average internal temperature stable, meaning all heat generated must be removed.
+#• The data center has 4,200,000 servers (42 servers per rack), each consuming an average of 450 W of power.
+# The cooling system removes heat by evaporating water, where 1 liter of water can absorb approximately 2.26 MJ of heat during evaporation.
+# The facility aims to keep the average internal temperature stable, meaning all heat generated must be removed.
 #• Model the relationship between the total electrical power consumption, total heat generated, and the volume of water needed per day.
 #• Calculate daily water usage in liters.
 #• Suppose the data center implements a load-shifting strategy that reduces rack usage 
@@ -31,50 +30,144 @@ library(psych)
 
 ###############################
 
-# Variable declaration
-
-rackcount = 100000
-
 # Unit conversion 
-HIGH_CHARGE = .09272
-LOW_CHARGE = .03696
-AVG_CHARGE = .04940
 AVG_ELEC_PER_KWH = 0.094
+BTUS_PER_KW = 3412
+BTUS_PER_MJ = 947.82
+MJ_PER_1L_EVAP = 2.26
 
-PUE = 1.45
-KW_PER_SERVER = .450
-SERVER_CAP = 1.0
-SERVER_RED_CAP = 0.8
 HOURS_PER_YEAR = 8760
 HOURS_PER_DAY = 24
 DAYS_IN_YEAR = 365.25
 
-SERVERS_PER_RACK = 42
-BTUS_PER_KW = 3412
-BTUS_PER_MJ = 947.82
-MJ_PER_1L = 2.26
-SITE_HEAT = 1.15
+#Presets for server capacities at different times
+#High Rate, Reg Rate, Low Rate
+NAIVE_CAP_DIST = c(1.0, 1.0, 1.0)
+CHALLENGE_CAP_DIST = c(0.8, 1.0, 1.0) #Servers run at 80% max for peak hours
 
+#Alliant's reported charges ($)
+#Prices, as well as rate hours can be founds in the following offcial PDF
+# https://share.google/x2O2o4FkEQXmv6SRM
+HIGH_CHARGE = .09272
+LOW_CHARGE = .03696
+AVG_CHARGE = .04940
+
+#Utility costs
+
+#Cost for cubic foot of water according Beaver Dam ($)
+# Prices are found a https://ci.beaverdam.wi.gov/270/Water-Sewer-Rates
+FIXED_CHARGE = 1812 #Fixed quarterly charge ($) (assuming 6 inch meter)
+T1_WATER_COST_FT3 = 0.0460 #Cost of first 6000 cubic feet
+T2_WATER_COST_FT3 = 0.0427 #Cost of next 114,000 cubic feet (to 120,000)
+T3_WATER_COST_FT3 = 0.0340 #Cost of all cubic feet after 120,000
+
+SEWAGE_RATE = 0.0299 #Cost per cubic foot of discharge ($)
+
+#Waste production metrics
+#Numbers come from https://www.eesi.org/articles/view/data-centers-and-water-consumption (Evaporation)
+#https://genesiswatertech.com/blog-post/data-center-water-usage-efficiency-guide/ (Average cycles)
+PERCENT_EVAP = 0.8 #Percent of cooling water that is lost to evaportation
+EST_CYCLES = 4 #Estimated number of times the same water is used
+
+#Time Proportions
 WEEKDAYS = 5/7
-PEAKHOURS = 6/24#average between 8 hours for summer and 4 hours for winter
-REGHOURS = 11/24
-WKDY_LOWHOURS = 7/24
-HALFYEAR = .5
-LOW_RATE_HOURS = 7/24
-REG_RATE_HOURS = 17/24
+WEEKEND_DAYS = 2/7
 
+PEAKHOURS = 6/24 #average between 8 hours for summer and 4 hours for winter
+AVRG_PEAKHOURS = 15/168 #(5/7)((1/2)(3/24))
+
+WS_REG_RATE_HOURS = 17/24 #hours during winter and summer
+FS_REG_RATE_HOURS = 11/24 #hours during fall and spring
+AVRG_REG_RATE_HOURS = 70/168 #(5/7)((1/2)(11/24 + 17/24))
+
+WKDY_LOWHOURS = 7/24
+AVRG_LOWHOURS = 83/168 #(5/7)(7/24) + (2/7)(24/24)
+
+#Weekdays: (1/2)(6 hr/24 hr) + (1/2)(17 hr/24 hr + 11 hr/24 hr) + (7 hr/24 hr)
+#= (1/2)((6 hr/24 hr) + (28 hr/24 hr)) + (7 hr/24 hr)
+#= (1/2)(34 hr/24 hr) + (7 hr/24 hr)
+#= (17 hr/24 hr) + (7 hr/24 hr)
+#= 24 hr/24 hr
+
+# Variable declaration
+
+#Affect number of servers and how they're distributed
+rackcount = 100000
+servers_per_rack = 42
+
+#Energry specifications
+PUE = 1.45
+kw_per_server = 0.450
+
+#Heat specifications
+site_heat_coef = 1.15 #Total site heat is site_heat_coef * IT heat
+Mj_per_liter = MJ_PER_1L_EVAP #Liters need to remove one Mj of heat
+
+#Water specifications
+water_cycles = EST_CYCLES
+replace_need_ratio = (PERCENT_EVAP * (water_cycles - 1) + 1)/water_cycles #Actual water used over liters needed
 
 ########
 #Model the total annual energy cost for the data center if it operates 100,000 (or 
 #some other amount) racks at full capacity all year. 
 ########
 
-#
-total_elec =  PUE * (rackcount * SERVERS_PER_RACK * SERVER_CAP * KW_PER_SERVER) * HOURS_PER_YEAR
-total_elec
+#Arranges the times and prices of each rate as a proportion of a day
+#High, Reg, Low
+rate_dist <- c(AVRG_PEAKHOURS, AVRG_REG_RATE_HOURS, AVRG_LOWHOURS)
+charge_dist <- c(HIGH_CHARGE, AVG_CHARGE, LOW_CHARGE)
+price_dist <- c(0, 0 ,0)
 
-total_elec_Cost =  total_elec * AVG_ELEC_PER_KWH
-total_elec_Cost
+for (i in 1:3)
+  {
+    price_dist[i] <- rate_dist[i] * charge_dist[i]
+  }
+
+#Server capacities during each type of hour
+cap_dist <- CHALLENGE_CAP_DIST
+
+total_servers <- rackcount * servers_per_rack
+
+#total_elec = PUE * (rackcount * SERVERS_PER_RACK * SERVER_CAP * KW_PER_SERVER) * HOURS_PER_YEAR
+#Gives total power per year [1] and total cost per year [2]
+find_total_elec <- function(PUE_var, tot_servers, rate_times, rate_prices, capacities, server_kw)
+{  
+  weight_dist <- c()
+  max_total <- PUE_var * tot_servers * server_kw * HOURS_PER_YEAR
+
+
+    for (i in 1:3)
+    {
+      weight_dist[i] <- rate_times[i] * capacities[i]
+    }
+    elec_sum <- 0
+    cost_sum <- 0
+    for (i in 1:3)
+    {
+      elec_sum <- elec_sum + (weight_dist[i] * max_total)
+      cost_sum <- cost_sum + (weight_dist[i] * rate_prices[i] * max_total)
+    }
+    
+
+    return(c(elec_sum, cost_sum))
+}
+
+#Total electric at full uptime (kWh):
+naive_tot_elec <- find_total_elec(PUE, total_servers, rate_dist, charge_dist, NAIVE_CAP_DIST, kw_per_server)[1]
+naive_tot_elec
+
+#Total electric cost at full uptime ($):
+naive_tot_price <- find_total_elec(PUE, total_servers, rate_dist, charge_dist, NAIVE_CAP_DIST, kw_per_server)[2]
+naive_tot_price
+
+#Total electric using a load shifting strategy (kWh):
+dynamic_tot_elec <- find_total_elec(PUE, total_servers, rate_dist, charge_dist, CHALLENGE_CAP_DIST, kw_per_server)[1]
+dynamic_tot_elec
+
+#Total electric cost using a load shifting strategy ($):
+dynamic_tot_price <- find_total_elec(PUE, total_servers, rate_dist, charge_dist, CHALLENGE_CAP_DIST, KW_PER_SERVER)[2]
+dynamic_tot_price
+
 
 #######
 #Calculate daily water usage in liters.
@@ -82,13 +175,54 @@ total_elec_Cost
 # Per https://gdchillers.com/resources/data-centers/how-to-calculate-data-center-cooling-requirements-step-by-step 
 #We can assume that electricty consumption in IT puts out an equivalent amount of heat. 
 #Facility load ranges between 1.05 to 1.15 time for heat generation per source, so you would find IT load, and multiply by 1.1  
-# Find IT load per day. 
 
-total_heat_day = SITE_HEAT * (rackcount * SERVERS_PER_RACK * SERVER_CAP * KW_PER_SERVER) * HOURS_PER_DAY * BTUS_PER_KW
-total_heat_day
+#Finds total heat load per year (BTUs)
+find_total_heat <- function(tot_servers, rate_times, capacities, server_kw)
+{
+  weight_dist <- c()
+  max_total <- tot_servers * server_kw * site_heat_coef * BTUS_PER_KW * HOURS_PER_YEAR
+  
+  
+  for (i in 1:3)
+  {
+    weight_dist[i] <- rate_times[i] * capacities[i]
+  }
+  
+  heat_sum <- 0
 
-total_H20_Ls = total_heat_day / (BTUS_PER_MJ * MJ_PER_1L)
-total_H20_Ls
+  for (i in 1:3)
+  {
+    heat_sum <- heat_sum + (weight_dist[i] * max_total)
+  }
+  
+  return(heat_sum)
+  
+}
 
-total_elec_cost2 = total_elec *  (HALFYEAR( WEEKDAYS * PEAKHOURS * HIGH_CHARGE * SERVER_RED_CAP) + (WEEKDAYS * ) + () ) 
-                              +(HALFYEAR(WEEKDAYS*REGHOURS)()))
+#Finds amount of water needed to offput heat (l)
+find_H20_needed <-function(heat,water_retained, Mj_per_l)
+{
+  liters_needed <- heat / (Mj_per_l * BTUS_PER_MJ)
+  liters_needed <- liters_needed * replace_need_ratio
+  
+  return(liters_needed)
+}
+
+#Find heat produced at full uptime (BTU)
+naive_tot_heat <- find_total_heat(total_servers, rate_dist, NAIVE_CAP_DIST, kw_per_server)
+naive_tot_heat
+
+#Find water needed at full uptime (L)
+naive_tot_water <- find_H20_needed(naive_tot_heat, Mj_per_liter)
+naive_tot_water
+
+#Find water cost at full uptime ($)
+
+
+#Find heat produced using a load shifting strategy (BTU)
+dynamic_tot_heat <- find_total_heat(total_servers, rate_dist, CHALLENGE_CAP_DIST, kw_per_server)
+
+#Find water need using a load shifting strategy (L)
+dynamic_tot_water <- find_H20_needed(dynamic_tot_heat, Mj_per_liter)
+
+#Find water cost using a load shifting strategy

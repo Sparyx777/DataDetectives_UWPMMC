@@ -35,6 +35,7 @@ AVG_ELEC_PER_KWH = 0.094
 BTUS_PER_KW = 3412
 BTUS_PER_MJ = 947.82
 MJ_PER_1L_EVAP = 2.26
+CUBIC_FEET_PER_LITER = 0.0353
 
 HOURS_PER_YEAR = 8760
 HOURS_PER_DAY = 24
@@ -60,6 +61,9 @@ FIXED_CHARGE = 1812 #Fixed quarterly charge ($) (assuming 6 inch meter)
 T1_WATER_COST_FT3 = 0.0460 #Cost of first 6000 cubic feet
 T2_WATER_COST_FT3 = 0.0427 #Cost of next 114,000 cubic feet (to 120,000)
 T3_WATER_COST_FT3 = 0.0340 #Cost of all cubic feet after 120,000
+
+T1_CUT_OFF = 6000
+T2_CUT_OFF = 114000
 
 SEWAGE_RATE = 0.0299 #Cost per cubic foot of discharge ($)
 
@@ -106,6 +110,7 @@ Mj_per_liter = MJ_PER_1L_EVAP #Liters need to remove one Mj of heat
 #Water specifications
 water_cycles = EST_CYCLES
 replace_need_ratio = (PERCENT_EVAP * (water_cycles - 1) + 1)/water_cycles #Actual water used over liters needed
+discarge_per_liter = (1 - PERCENT_EVAP) #Waste water per liter of water used (after accounting for above ratio)
 
 ########
 #Model the total annual energy cost for the data center if it operates 100,000 (or 
@@ -157,16 +162,16 @@ naive_tot_elec <- find_total_elec(PUE, total_servers, rate_dist, charge_dist, NA
 naive_tot_elec
 
 #Total electric cost at full uptime ($):
-naive_tot_price <- find_total_elec(PUE, total_servers, rate_dist, charge_dist, NAIVE_CAP_DIST, kw_per_server)[2]
-naive_tot_price
+naive_tot_elec_price <- find_total_elec(PUE, total_servers, rate_dist, charge_dist, NAIVE_CAP_DIST, kw_per_server)[2]
+naive_tot_elec_price
 
 #Total electric using a load shifting strategy (kWh):
 dynamic_tot_elec <- find_total_elec(PUE, total_servers, rate_dist, charge_dist, CHALLENGE_CAP_DIST, kw_per_server)[1]
 dynamic_tot_elec
 
 #Total electric cost using a load shifting strategy ($):
-dynamic_tot_price <- find_total_elec(PUE, total_servers, rate_dist, charge_dist, CHALLENGE_CAP_DIST, KW_PER_SERVER)[2]
-dynamic_tot_price
+dynamic_tot_elec_price <- find_total_elec(PUE, total_servers, rate_dist, charge_dist, CHALLENGE_CAP_DIST, KW_PER_SERVER)[2]
+dynamic_tot_elec_price
 
 
 #######
@@ -200,12 +205,51 @@ find_total_heat <- function(tot_servers, rate_times, capacities, server_kw)
 }
 
 #Finds amount of water needed to offput heat (l)
-find_H20_needed <-function(heat,water_retained, Mj_per_l)
+find_H2O_needed <-function(heat,water_ratio, Mj_per_l)
 {
   liters_needed <- heat / (Mj_per_l * BTUS_PER_MJ)
-  liters_needed <- liters_needed * replace_need_ratio
+  liters_needed <- liters_needed * water_ratio
   
   return(liters_needed)
+}
+
+#Finds price of water and sewage
+find_H2O_price <- function(water_used)
+{
+  total_price <- FIXED_CHARGE
+  ft3_used = water_used * CUBIC_FEET_PER_LITER
+  
+  #Finds the water cost by filling each bracket until all water is accounted for
+  if(ft3_used >= T1_CUT_OFF)
+  {
+    total_price <- total_price + (T1_CUT_OFF * T1_WATER_COST_FT3)
+    ft3_used <- ft3_used - T1_CUT_OFF
+  }else
+  {
+    total_price <- total_price + (ft3_used * T1_WATER_COST_FT3)
+    ft3_used = 0
+    }
+  
+  if(ft3_used >= T2_CUT_OFF)
+  {
+    total_price <- total_price + (T2_CUT_OFF * T2_WATER_COST_FT3)
+    ft3_used <- ft3_used - T2_CUT_OFF
+  }else
+  {
+      total_price <- total_price + (T2_CUT_OFF * T2_WATER_COST_FT3)
+      ft3_used <- 0
+      }
+  
+  if(ft3_used > 0)
+  {
+    total_price <- total_price + (ft3_used * T3_WATER_COST_FT3)
+  }
+  
+  sewage_cost = discarge_per_liter * (water_used * CUBIC_FEET_PER_LITER) * SEWAGE_RATE
+  
+  total_price <- total_price + sewage_cost
+  
+  return(total_price)
 }
 
 #Find heat produced at full uptime (BTU)
@@ -213,16 +257,21 @@ naive_tot_heat <- find_total_heat(total_servers, rate_dist, NAIVE_CAP_DIST, kw_p
 naive_tot_heat
 
 #Find water needed at full uptime (L)
-naive_tot_water <- find_H20_needed(naive_tot_heat, Mj_per_liter)
+naive_tot_water <- find_H2O_needed(naive_tot_heat, replace_need_ratio, Mj_per_liter)
 naive_tot_water
 
 #Find water cost at full uptime ($)
-
+naive_tot_water_price <- find_H2O_price(naive_tot_water)
+naive_tot_water_price
 
 #Find heat produced using a load shifting strategy (BTU)
 dynamic_tot_heat <- find_total_heat(total_servers, rate_dist, CHALLENGE_CAP_DIST, kw_per_server)
+dynamic_tot_heat
 
 #Find water need using a load shifting strategy (L)
-dynamic_tot_water <- find_H20_needed(dynamic_tot_heat, Mj_per_liter)
+dynamic_tot_water <- find_H2O_needed(dynamic_tot_heat, replace_need_ratio, Mj_per_liter)
+dynamic_tot_water
 
-#Find water cost using a load shifting strategy
+#Find water cost using a load shifting strategy ($)
+dynamic_tot_water_price <- find_H2O_price(dynamic_tot_water)
+dynamic_tot_water_price

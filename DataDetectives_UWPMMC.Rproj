@@ -210,7 +210,7 @@ find_total_heat <- function(tot_servers, rate_times, capacities, server_kw)
   
 }
 
-#Finds amount of water needed to offput heat (l)
+#Finds amount of water needed to offput heat annually(l)
 find_H2O_needed <-function(heat, water_ratio, Mj_per_l)
 {
   liters_needed <- heat / (Mj_per_l * BTUS_PER_MJ)
@@ -218,6 +218,16 @@ find_H2O_needed <-function(heat, water_ratio, Mj_per_l)
   
   return(liters_needed)
 }
+
+#Finds amount of water needed to offput heat daily(l)
+find_H2O_needed_daily <-function(heat, water_ratio, Mj_per_l)
+{
+  liters_needed_day <- heat / (Mj_per_l * BTUS_PER_MJ)
+  liters_needed_day <- liters_needed * water_ratio + (liters_needed * water_capacity)/DAYS_IN_YEAR
+  
+  return(liters_needed_day)
+}
+
 
 #Finds price of water and sewage
 find_H2O_price <- function(water_used)

@@ -41,10 +41,15 @@ HOURS_PER_YEAR = 8760
 HOURS_PER_DAY = 24
 DAYS_IN_YEAR = 365.25
 
-#Presets for server capacities at different times
-#High Rate, Reg Rate, Low Rate
+#Presets for different questions
+UPGRADE_SERVER_PERCENT = 1.2
+
+
+
+#Server capacities at different times (High Rate, Reg Rate, Low Rate)
 NAIVE_CAP_DIST = c(1.0, 1.0, 1.0)
-CHALLENGE_CAP_DIST = c(0.8, 1.0, 1.0) #Servers run at 80% max for peak hours
+SHIFT_CAP_DIST = c(0.8, 1.0, 1.0) #Servers run at 80% max for peak hours
+UPGRADE_CAP_DIST = c(0.9, 0.9, 0.9) #All servers 10% more efficient
 
 #Alliant's reported charges ($)
 #Prices, as well as rate hours can be founds in the following offcial PDF
@@ -111,6 +116,7 @@ Mj_per_liter = MJ_PER_1L_EVAP #Liters need to remove one Mj of heat
 water_cycles = EST_CYCLES
 replace_need_ratio = (PERCENT_EVAP * (water_cycles - 1) + 1)/water_cycles #Actual water used over liters needed
 discarge_per_liter = (1 - PERCENT_EVAP) #Waste water per liter of water used (after accounting for above ratio)
+water_capacity = 2/DAYS_IN_YEAR #Ratio of water stored to annual needs (currently assumes two days of raw need kept)
 
 ########
 #Model the total annual energy cost for the data center if it operates 100,000 (or 
@@ -166,11 +172,11 @@ naive_tot_elec_price <- find_total_elec(PUE, total_servers, rate_dist, charge_di
 naive_tot_elec_price
 
 #Total electric using a load shifting strategy (kWh):
-dynamic_tot_elec <- find_total_elec(PUE, total_servers, rate_dist, charge_dist, CHALLENGE_CAP_DIST, kw_per_server)[1]
+dynamic_tot_elec <- find_total_elec(PUE, total_servers, rate_dist, charge_dist, SHIFT_CAP_DIST, kw_per_server)[1]
 dynamic_tot_elec
 
 #Total electric cost using a load shifting strategy ($):
-dynamic_tot_elec_price <- find_total_elec(PUE, total_servers, rate_dist, charge_dist, CHALLENGE_CAP_DIST, KW_PER_SERVER)[2]
+dynamic_tot_elec_price <- find_total_elec(PUE, total_servers, rate_dist, charge_dist, SHIFT_CAP_DIST, KW_PER_SERVER)[2]
 dynamic_tot_elec_price
 
 
@@ -205,10 +211,10 @@ find_total_heat <- function(tot_servers, rate_times, capacities, server_kw)
 }
 
 #Finds amount of water needed to offput heat (l)
-find_H2O_needed <-function(heat,water_ratio, Mj_per_l)
+find_H2O_needed <-function(heat, water_ratio, Mj_per_l)
 {
   liters_needed <- heat / (Mj_per_l * BTUS_PER_MJ)
-  liters_needed <- liters_needed * water_ratio
+  liters_needed <- liters_needed * water_ratio + (liters_needed * water_capacity)
   
   return(liters_needed)
 }
@@ -265,7 +271,7 @@ naive_tot_water_price <- find_H2O_price(naive_tot_water)
 naive_tot_water_price
 
 #Find heat produced using a load shifting strategy (BTU)
-dynamic_tot_heat <- find_total_heat(total_servers, rate_dist, CHALLENGE_CAP_DIST, kw_per_server)
+dynamic_tot_heat <- find_total_heat(total_servers, rate_dist, SHIFT_CAP_DIST, kw_per_server)
 dynamic_tot_heat
 
 #Find water need using a load shifting strategy (L)
@@ -275,3 +281,23 @@ dynamic_tot_water
 #Find water cost using a load shifting strategy ($)
 dynamic_tot_water_price <- find_H2O_price(dynamic_tot_water)
 dynamic_tot_water_price
+
+#Power used for 20% increase in number of servers, and 10% power consumption decrease
+upgrade_tot_elec <- find_total_elec(PUE, UPGRADE_SERVER_PERCENT * total_servers, rate_dist, charge_dist, SHIFT_CAP_DIST, kw_per_server)[1]
+upgrade_tot_elec
+
+#Power cost for 20% increase in number of servers, and 10% power consumption decrease
+upgrade_tot_elec_cost <- find_total_elec(PUE, UPGRADE_SERVER_PERCENT * total_servers, rate_dist, charge_dist, SHIFT_CAP_DIST, kw_per_server)[2]
+upgrade_tot_elec_cost
+
+#Heat generated with 20% increase in number of servers, and 10% power consumption decrease
+upgrade_tot_heat <- find_total_heat (UPGRADE_SERVER_PERCENT * tot_servers, rate_times, SHIFT_CAP_DIST, server_kw)
+upgrade_tot_heat
+
+#Water used with a 20% increase in number of servers, and 10% power consumption decrease
+upgrade_tot_water <- find_H2O_needed(upgrade_tot_heat, replace_need_ratio, Mj_per_liter)
+upgrade_tot_water
+
+#Water price with a 20% increase in number of servers, and 10% power consumption decrease
+upgrade_tot_water_price <- find_H2O_price(upgrade_tot_water)
+upgrade_tot_water_price

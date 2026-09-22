@@ -291,7 +291,7 @@ upgrade_tot_elec_cost <- find_total_elec(PUE, UPGRADE_SERVER_PERCENT * total_ser
 upgrade_tot_elec_cost
 
 #Heat generated with 20% increase in number of servers, and 10% power consumption decrease
-upgrade_tot_heat <- find_total_heat (UPGRADE_SERVER_PERCENT * tot_servers, rate_times, SHIFT_CAP_DIST, server_kw)
+upgrade_tot_heat <- find_total_heat (UPGRADE_SERVER_PERCENT * total_servers, rate_dist, SHIFT_CAP_DIST, kw_per_server)
 upgrade_tot_heat
 
 #Water used with a 20% increase in number of servers, and 10% power consumption decrease

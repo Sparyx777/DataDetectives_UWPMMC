@@ -102,6 +102,10 @@ AVRG_LOWHOURS = 83/168 #(5/7)(7/24) + (2/7)(24/24)
 
 #Affect number of servers and how they're distributed
 rackcount = 100000
+rackcounts <- as.array(100000, 200000, 300000, 400000)
+?array
+?append
+
 servers_per_rack = 42
 
 #Energy specifications
@@ -130,9 +134,9 @@ charge_dist <- c(HIGH_CHARGE, AVG_CHARGE, LOW_CHARGE)
 price_dist <- c(0, 0 ,0)
 
 for (i in 1:3)
-  {
-    price_dist[i] <- rate_dist[i] * charge_dist[i]
-  }
+{
+  price_dist[i] <- rate_dist[i] * charge_dist[i]
+}
 
 #Server capacities during each type of hour
 cap_dist <- CHALLENGE_CAP_DIST
@@ -145,22 +149,22 @@ find_total_elec <- function(PUE_var, tot_servers, rate_times, rate_prices, capac
 {  
   weight_dist <- c()
   max_total <- PUE_var * tot_servers * server_kw * HOURS_PER_YEAR
-
-
-    for (i in 1:3)
-    {
-      weight_dist[i] <- rate_times[i] * capacities[i]
-    }
-    elec_sum <- 0
-    cost_sum <- 0
-    for (i in 1:3)
-    {
-      elec_sum <- elec_sum + (weight_dist[i] * max_total)
-      cost_sum <- cost_sum + (weight_dist[i] * rate_prices[i] * max_total)
-    }
-    
-
-    return(c(elec_sum, cost_sum))
+  
+  
+  for (i in 1:3)
+  {
+    weight_dist[i] <- rate_times[i] * capacities[i]
+  }
+  elec_sum <- 0
+  cost_sum <- 0
+  for (i in 1:3)
+  {
+    elec_sum <- elec_sum + (weight_dist[i] * max_total)
+    cost_sum <- cost_sum + (weight_dist[i] * rate_prices[i] * max_total)
+  }
+  
+  
+  return(c(elec_sum, cost_sum))
 }
 
 #Total electric at full uptime (kWh):
@@ -200,7 +204,7 @@ find_total_heat <- function(tot_servers, rate_times, capacities, server_kw)
   }
   
   heat_sum <- 0
-
+  
   for (i in 1:3)
   {
     heat_sum <- heat_sum + (weight_dist[i] * max_total)
@@ -228,6 +232,7 @@ find_H2O_needed_daily <-function(heat, water_ratio, Mj_per_l)
   return(liters_needed_day)
 }
 
+
 #Finds price of water and sewage
 find_H2O_price <- function(water_used)
 {
@@ -243,7 +248,7 @@ find_H2O_price <- function(water_used)
   {
     total_price <- total_price + (ft3_used * T1_WATER_COST_FT3)
     ft3_used = 0
-    }
+  }
   
   if(ft3_used >= T2_CUT_OFF)
   {
@@ -251,9 +256,9 @@ find_H2O_price <- function(water_used)
     ft3_used <- ft3_used - T2_CUT_OFF
   }else
   {
-      total_price <- total_price + (T2_CUT_OFF * T2_WATER_COST_FT3)
-      ft3_used <- 0
-      }
+    total_price <- total_price + (T2_CUT_OFF * T2_WATER_COST_FT3)
+    ft3_used <- 0
+  }
   
   if(ft3_used > 0)
   {
@@ -275,6 +280,9 @@ naive_tot_heat
 naive_tot_water <- find_H2O_needed(naive_tot_heat, replace_need_ratio, Mj_per_liter)
 naive_tot_water
 
+dynamic_tot_water_d <- find_H2O_needed_daily(dynamic_tot_heat, replace_need_ratio, Mj_per_liter)
+dynamic_tot_water_d
+
 #Find water cost at full uptime ($)
 naive_tot_water_price <- find_H2O_price(naive_tot_water)
 naive_tot_water_price
@@ -284,12 +292,13 @@ dynamic_tot_heat <- find_total_heat(total_servers, rate_dist, SHIFT_CAP_DIST, kw
 dynamic_tot_heat
 
 #Find water need using a load shifting strategy (L)
-dynamic_tot_water <- find_H2O_needed(dynamic_tot_heat, replace_need_ratio, Mj_per_liter)
-dynamic_tot_water
+dynamic_tot_water_a <- find_H2O_needed(dynamic_tot_heat, replace_need_ratio, Mj_per_liter)
+dynamic_tot_water_a
 
 #Find water cost using a load shifting strategy ($)
-dynamic_tot_water_price <- find_H2O_price(dynamic_tot_water)
+dynamic_tot_water_price <- find_H2O_price(dynamic_tot_water_a)
 dynamic_tot_water_price
+
 
 #Power used for 20% increase in number of servers, and 10% power consumption decrease
 upgrade_tot_elec <- find_total_elec(PUE, UPGRADE_SERVER_PERCENT * total_servers, rate_dist, charge_dist, SHIFT_CAP_DIST, kw_per_server)[1]
@@ -311,7 +320,6 @@ upgrade_tot_water
 upgrade_tot_water_price <- find_H2O_price(upgrade_tot_water)
 upgrade_tot_water_price
 
-
 rack_counts <- c()
 energy_use <- c()
 
@@ -325,5 +333,9 @@ for (i in 1:5)
 }
 rack_count_vs_energy <- matrix(c(rack_counts, energy_used), nrow = 5, ncol = 2)
 
+
+rack_count_vs_energy
+
+graph <- ggplot(data = as.data.frame(rack_count_vs_energy))
 
 rack_count_vs_energy

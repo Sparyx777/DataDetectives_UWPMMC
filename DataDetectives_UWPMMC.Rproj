@@ -313,22 +313,18 @@ upgrade_tot_water_price <- find_H2O_price(upgrade_tot_water)
 upgrade_tot_water_price
 
 
-servers_vs_energy <- array(dim = c(5,2))
-for (i in 1:5)
-{
-  rack_counts <- rackcount * i
-  server_counts <- rack_counts * SERVERS_PER_RACK
-  
-  energy_used <- find_total_elec(PUE, server_counts, rate_dist, charge_dist, NAIVE_CAP_DIST, KW_PER_SERVER)
-  
-  append(servers_vs_energy, c(rack_counts, energy_used))
-  
-}
-servers_vs_energy[1][2]
+rack_counts <- c()
+energy_use <- c()
 
 for (i in 1:5)
 {
-  servers_vs_energy[i][1]
-  servers_vs_energy[i][2]
+  rack_counts[i] <- rackcount * i
+  server_counts <- rack_counts[i] * SERVERS_PER_RACK
+  
+  energy_used[i] <- find_total_elec(PUE, server_counts, rate_dist, charge_dist, NAIVE_CAP_DIST, KW_PER_SERVER)[1]
   
 }
+rack_count_vs_energy <- matrix(c(rack_counts, energy_used), nrow = 5, ncol = 2)
+
+
+rack_count_vs_energy

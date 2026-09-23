@@ -334,3 +334,23 @@ rack_count_vs_energy <- matrix(c(rack_counts, energy_used), nrow = 5, ncol = 2)
 
 rack_count_vs_energy
 
+#Total power for 400,000 racks
+max_tot_elec <- find_total_elec(PUE, 4 * total_servers, rate_dist, charge_dist, NAIVE_CAP_DIST, kw_per_server)
+max_tot_elec
+
+#Total electric costs for 400,000 racks
+max_tot_elec_price <- find_total_elec(PUE, 4 * total_servers, rate_dist, charge_dist, NAIVE_CAP_DIST, kw_per_server)
+max_tot_elec_price
+
+#Total heat for 400,000 racks
+max_tot_heat <- find_total_heat(4 * total_servers, rate_dist, NAIVE_CAP_DIST, kw_per_server)
+max_tot_heat
+
+#Total water used for 400,000 racks
+max_tot_water <- find_H2O_needed(max_tot_heat, replace_need_ratio, Mj_per_liter)
+max_tot_water
+
+#Total water price used for 400,000 racks
+max_tot_water_price <- find_H2O_price(max_tot_water)
+max_tot_water_price
+

@@ -104,7 +104,7 @@ AVRG_LOWHOURS = 83/168 #(5/7)(7/24) + (2/7)(24/24)
 rackcount = 100000
 servers_per_rack = 42
 
-#Energry specifications
+#Energy specifications
 PUE = 1.45
 kw_per_server = 0.450
 
@@ -223,11 +223,10 @@ find_H2O_needed <-function(heat, water_ratio, Mj_per_l)
 find_H2O_needed_daily <-function(heat, water_ratio, Mj_per_l)
 {
   liters_needed_day <- heat / (Mj_per_l * BTUS_PER_MJ)
-  liters_needed_day <- liters_needed * water_ratio + (liters_needed * water_capacity)/DAYS_IN_YEAR
+  liters_needed_day <- (liters_needed_day * water_ratio + (liters_needed_day * water_capacity))/DAYS_IN_YEAR
   
   return(liters_needed_day)
 }
-
 
 #Finds price of water and sewage
 find_H2O_price <- function(water_used)

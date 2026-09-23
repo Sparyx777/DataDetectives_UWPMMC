@@ -102,10 +102,6 @@ AVRG_LOWHOURS = 83/168 #(5/7)(7/24) + (2/7)(24/24)
 
 #Affect number of servers and how they're distributed
 rackcount = 100000
-rackcounts <- as.array(100000, 200000, 300000, 400000)
-?array
-?append
-
 servers_per_rack = 42
 
 #Energy specifications
@@ -232,38 +228,41 @@ find_H2O_needed_daily <-function(heat, water_ratio, Mj_per_l)
   return(liters_needed_day)
 }
 
-
 #Finds price of water and sewage
 find_H2O_price <- function(water_used)
 {
-  total_price <- FIXED_CHARGE
+  total_price <- FIXED_CHARGE * 4
   ft3_used = water_used * CUBIC_FEET_PER_LITER
+  ft3_used_quarter <- ft3_used / 4
   
   #Finds the water cost by filling each bracket until all water is accounted for
-  if(ft3_used >= T1_CUT_OFF)
-  {
-    total_price <- total_price + (T1_CUT_OFF * T1_WATER_COST_FT3)
-    ft3_used <- ft3_used - T1_CUT_OFF
-  }else
-  {
-    total_price <- total_price + (ft3_used * T1_WATER_COST_FT3)
-    ft3_used = 0
-  }
-  
-  if(ft3_used >= T2_CUT_OFF)
-  {
-    total_price <- total_price + (T2_CUT_OFF * T2_WATER_COST_FT3)
-    ft3_used <- ft3_used - T2_CUT_OFF
-  }else
-  {
-    total_price <- total_price + (T2_CUT_OFF * T2_WATER_COST_FT3)
-    ft3_used <- 0
-  }
-  
-  if(ft3_used > 0)
-  {
-    total_price <- total_price + (ft3_used * T3_WATER_COST_FT3)
-  }
+  for (i in 1:4)
+    {
+      if(ft3_used_quarter >= T1_CUT_OFF)
+      {
+        total_price <- total_price + (T1_CUT_OFF * T1_WATER_COST_FT3)
+        ft3_used_quarter <- ft3_used_quarter - T1_CUT_OFF
+      }else
+      {
+        total_price <- total_price + (ft3_used_quarter * T1_WATER_COST_FT3)
+        ft3_used = 0
+      }
+      
+      if(ft3_used_quarter >= T2_CUT_OFF)
+      {
+        total_price <- total_price + (T2_CUT_OFF * T2_WATER_COST_FT3)
+        ft3_used_quarter <- ft3_used_quarter - T2_CUT_OFF
+      }else
+      {
+        total_price <- total_price + (T2_CUT_OFF * T2_WATER_COST_FT3)
+        ft3_used_quarter <- 0
+      }
+      
+      if(ft3_used_quarter > 0)
+      {
+        total_price <- total_price + (ft3_used_quarter * T3_WATER_COST_FT3)
+      }
+    }
   
   sewage_cost = discarge_per_liter * (water_used * CUBIC_FEET_PER_LITER) * SEWAGE_RATE
   
@@ -280,9 +279,6 @@ naive_tot_heat
 naive_tot_water <- find_H2O_needed(naive_tot_heat, replace_need_ratio, Mj_per_liter)
 naive_tot_water
 
-dynamic_tot_water_d <- find_H2O_needed_daily(dynamic_tot_heat, replace_need_ratio, Mj_per_liter)
-dynamic_tot_water_d
-
 #Find water cost at full uptime ($)
 naive_tot_water_price <- find_H2O_price(naive_tot_water)
 naive_tot_water_price
@@ -292,13 +288,12 @@ dynamic_tot_heat <- find_total_heat(total_servers, rate_dist, SHIFT_CAP_DIST, kw
 dynamic_tot_heat
 
 #Find water need using a load shifting strategy (L)
-dynamic_tot_water_a <- find_H2O_needed(dynamic_tot_heat, replace_need_ratio, Mj_per_liter)
-dynamic_tot_water_a
+dynamic_tot_water <- find_H2O_needed(dynamic_tot_heat, replace_need_ratio, Mj_per_liter)
+dynamic_tot_water
 
 #Find water cost using a load shifting strategy ($)
-dynamic_tot_water_price <- find_H2O_price(dynamic_tot_water_a)
+dynamic_tot_water_price <- find_H2O_price(dynamic_tot_water)
 dynamic_tot_water_price
-
 
 #Power used for 20% increase in number of servers, and 10% power consumption decrease
 upgrade_tot_elec <- find_total_elec(PUE, UPGRADE_SERVER_PERCENT * total_servers, rate_dist, charge_dist, SHIFT_CAP_DIST, kw_per_server)[1]
@@ -320,6 +315,7 @@ upgrade_tot_water
 upgrade_tot_water_price <- find_H2O_price(upgrade_tot_water)
 upgrade_tot_water_price
 
+
 rack_counts <- c()
 energy_use <- c()
 
@@ -333,9 +329,5 @@ for (i in 1:5)
 }
 rack_count_vs_energy <- matrix(c(rack_counts, energy_used), nrow = 5, ncol = 2)
 
-
-rack_count_vs_energy
-
-graph <- ggplot(data = as.data.frame(rack_count_vs_energy))
 
 rack_count_vs_energy

@@ -325,27 +325,56 @@ energy_used <- c()
 #Example of including random data in a graph
 #If we want energy usage versus rack count, we can assume that the percent of maximum energy
 #draw differs randomly due to safety margins under different environmental conditions
+#The random number(s) does not have to be the independent variable (we can have noise)
 #These numbers are arbitrary
 max_energy_percent <- 0.9
 min_energy_percent <- 0.5
 energy_percent_std <- 0.05
 
+max_addition <- 5000
+unit_step <- 500
+
+
+
+replicates <- 5
+
 set.seed(Sys.time())
-for (i in 1:1000)
+#Each value of racks (in our choose range) will be measured alongside its power input
+#a number of times equal to the replicates number
+for(i in 1:replicates)
 {
-  rack_counts[i] <- rackcount * i
-  server_counts <- rack_counts[i] * SERVERS_PER_RACK
-  
-  energy_used[i] <- find_total_elec(PUE, server_counts, rate_dist, charge_dist, NAIVE_CAP_DIST, KW_PER_SERVER)[1]
-  energy_used[i] <- energy_used[i] * rnorm(1, ((max_energy_percent + min_energy_percent) * 0.5), energy_percent_std)
-  
+  for (j in 1:max_addition)
+  {
+    index <- j + (max_addition * (i - 1))
+    
+    rack_counts[index] <- rackcount + (unit_step * (j - 1))
+    server_counts <- rack_counts[index] * SERVERS_PER_RACK
+    
+    energy_used_day <- find_total_elec(PUE, server_counts, rate_dist, charge_dist, NAIVE_CAP_DIST, KW_PER_SERVER)[1] / DAYS_IN_YEAR
+    energy_used[index] <- 0
+    
+    #Capacity should change with day, even if final number is annual
+    for(h in 1:365)
+    {
+      energy_used_day <- energy_used_day * rnorm(1, ((max_energy_percent + min_energy_percent) * 0.5), energy_percent_std)
+      energy_used[index] <- energy_used[index] + energy_used_day
+    }
+    
+    #Accounts for leap years
+    energy_used_day <- energy_used_day * rnorm(1, ((max_energy_percent + min_energy_percent) * 0.5), energy_percent_std)
+    energy_used[index] <- energy_used[index] + (energy_used_day / 4)
+    
+    #Gets number of racks in terms of 100,000 units
+    rack_counts[index] <- rack_counts[index] / rackcount
+  }
 }
-rack_count_vs_energy <- data.frame(rack_counts, energy_used)
+energy_vs_rack_count <- data.frame(rack_counts, energy_used)
 
 
-rack_count_vs_energy
+energy_vs_rack_count
 
-ggplot(rack_count_vs_energy, aes(x = rack_counts, y = energy_used)) + geom_point() + geom_smooth(formula = y ~ x, method = "lm" )
+ggplot(energy_vs_rack_count, aes(x = rack_counts, y = energy_used)) + geom_point(size = 0.1) + geom_smooth(formula = y ~ x, method = "lm" ) +
+  labs(x = "Rack Count (in 100,000 Units)", y = "Energy Used in kWh")
 
 #Total power for 400,000 racks
 max_tot_elec <- find_total_elec(PUE, 4 * total_servers, rate_dist, charge_dist, NAIVE_CAP_DIST, kw_per_server)

@@ -233,11 +233,12 @@ find_H2O_price <- function(water_used)
 {
   total_price <- FIXED_CHARGE * 4
   ft3_used = water_used * CUBIC_FEET_PER_LITER
-  ft3_used_quarter <- ft3_used / 4
+  
   
   #Finds the water cost by filling each bracket until all water is accounted for
   for (i in 1:4)
     {
+      ft3_used_quarter <- ft3_used / 4
       if(ft3_used_quarter >= T1_CUT_OFF)
       {
         total_price <- total_price + (T1_CUT_OFF * T1_WATER_COST_FT3)
@@ -261,6 +262,7 @@ find_H2O_price <- function(water_used)
       if(ft3_used_quarter > 0)
       {
         total_price <- total_price + (ft3_used_quarter * T3_WATER_COST_FT3)
+        ft3_used_quarter <- 0
       }
     }
   
@@ -331,3 +333,4 @@ rack_count_vs_energy <- matrix(c(rack_counts, energy_used), nrow = 5, ncol = 2)
 
 
 rack_count_vs_energy
+

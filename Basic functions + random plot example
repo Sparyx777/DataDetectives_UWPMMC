@@ -135,7 +135,7 @@ for (i in 1:3)
 }
 
 #Server capacities during each type of hour
-cap_dist <- CHALLENGE_CAP_DIST
+cap_dist <- SHIFT_CAP_DIST
 
 total_servers <- rackcount * servers_per_rack
 

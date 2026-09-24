@@ -332,7 +332,7 @@ min_energy_percent <- 0.5
 energy_percent_std <- 0.05
 
 max_addition <- 5000
-unit_step <- 500
+unit_step <- 1000
 
 
 

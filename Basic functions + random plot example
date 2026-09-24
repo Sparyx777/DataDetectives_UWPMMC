@@ -3,6 +3,7 @@ library(modelr)
 library(ggplot2)
 library(lubridate)
 library(psych)
+library(ggpubr)
 
 ################################
 
@@ -320,6 +321,7 @@ upgrade_tot_water_price
 
 rack_counts <- c()
 energy_used <- c()
+energy_price <- c()
 
 
 #Example of including random data in a graph
@@ -331,12 +333,12 @@ max_energy_percent <- 0.9
 min_energy_percent <- 0.5
 energy_percent_std <- 0.05
 
-max_addition <- 5000
-unit_step <- 1000
+max_addition <- 750
+unit_step <- 450
 
 
 
-replicates <- 5
+replicates <- 3
 
 set.seed(Sys.time())
 #Each value of racks (in our choose range) will be measured alongside its power input
@@ -351,31 +353,52 @@ for(i in 1:replicates)
     server_counts <- rack_counts[index] * SERVERS_PER_RACK
     
     energy_used_day <- find_total_elec(PUE, server_counts, rate_dist, charge_dist, NAIVE_CAP_DIST, KW_PER_SERVER)[1] / DAYS_IN_YEAR
+    energy_price_day <- find_total_elec(PUE, server_counts, rate_dist, charge_dist, NAIVE_CAP_DIST, KW_PER_SERVER)[2] / DAYS_IN_YEAR
     energy_used[index] <- 0
+    energy_price[index] <- 0
     
     #Capacity should change with day, even if final number is annual
     for(h in 1:365)
     {
       energy_used_day <- energy_used_day * rnorm(1, ((max_energy_percent + min_energy_percent) * 0.5), energy_percent_std)
+      energy_price_day <- energy_price_day * rnorm(1, ((max_energy_percent + min_energy_percent) * 0.5), energy_percent_std)
       energy_used[index] <- energy_used[index] + energy_used_day
+      energy_price[index] <- energy_price[index] + energy_price_day
     }
     
     #Accounts for leap years
     energy_used_day <- energy_used_day * rnorm(1, ((max_energy_percent + min_energy_percent) * 0.5), energy_percent_std)
     energy_used[index] <- energy_used[index] + (energy_used_day / 4)
     
+    energy_price_day <- energy_price_day * rnorm(1, ((max_energy_percent + min_energy_percent) * 0.5), energy_percent_std)
+    energy_price[index] <- energy_price[index] + (energy_price_day / 4)
+    
     #Gets number of racks in terms of 100,000 units
     rack_counts[index] <- rack_counts[index] / rackcount
+    
+    #Gets energy in terms of 1 million kWh
+    energy_used[index] <- energy_used[index] / 1000000
+    
+    #Gets price in terms of 100,000 dollars
+    energy_price[index] <- energy_price[index] / 100000
   }
 }
 energy_vs_rack_count <- data.frame(rack_counts, energy_used)
+energy_price_vs_rack_count <- data.frame(rack_counts, energy_price)
 
 
 energy_vs_rack_count
 
-ggplot(energy_vs_rack_count, aes(x = rack_counts, y = energy_used)) + geom_point(size = 0.1) + geom_smooth(formula = y ~ x, method = "lm" ) +
-  labs(x = "Rack Count (in 100,000 Units)", y = "Energy Used in kWh")
+ggplot(energy_vs_rack_count, aes(x = rack_counts, y = energy_used)) + geom_point(size = 0.1) + geom_smooth(formula = y ~ x, method = "lm") +
+  labs(x = "Rack Count (in 100,000 Units)", y = "Energy Used in one million kWh") + coord_cartesian(xlim = c(1, 4), ylim = c(100, 850)) +
+  stat_cor(label.x = 1, label.y = 430,) + stat_regline_equation(label.x = 1, label.y = 480)
 
+ggplot(energy_price_vs_rack_count, aes(x = rack_counts, y = energy_price)) + geom_point(size = 0.2) + geom_smooth(formula = y ~ x, method = "lm" ) +
+  labs(x = "Rack Count (in 100,000 Units)", y = "Price in $100,000") + stat_cor(label.x = 1, label.y = 430,) + stat_regline_equation(label.x = 1, label.y = 480)
+
+#survfit <- lm(Cost~Electrical use, data = dataframe) 
+
+  
 #Total power for 400,000 racks
 max_tot_elec <- find_total_elec(PUE, 4 * total_servers, rate_dist, charge_dist, NAIVE_CAP_DIST, kw_per_server)
 max_tot_elec

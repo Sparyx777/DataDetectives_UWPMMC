@@ -66,10 +66,14 @@ AVG_CHARGE = .04940
 FIXED_CHARGE = 1812 #Fixed quarterly charge ($) (assuming 6 inch meter)
 T1_WATER_COST_FT3 = 0.0460 #Cost of first 6000 cubic feet
 T2_WATER_COST_FT3 = 0.0427 #Cost of next 114,000 cubic feet (to 120,000)
-T3_WATER_COST_FT3 = 0.0340 #Cost of all cubic feet after 120,000
+T3_WATER_COST_FT3 = 0.0340 #Cost of next 280,000 cubic feet (to 400,000)
+T4_WATER_COST_FT3 = 0.0920 #Cost of next 1271007 cubic feet (to 1671007)
+T5_WATER_COST_FT3 = 0.1260 #Cost of all cubic feet after 1671007 cubic feet
 
 T1_CUT_OFF = 6000
 T2_CUT_OFF = 114000
+T3_CUT_OFF = 280000
+T4_CUT_OFF = 1271007
 
 SEWAGE_RATE = 0.0299 #Cost per cubic foot of discharge ($)
 
@@ -230,7 +234,7 @@ find_H2O_needed_daily <-function(heat, water_ratio, Mj_per_l)
 }
 
 #Finds price of water and sewage
-find_H2O_price <- function(water_used)
+find_H2O_price_hyp <- function(water_used)
 {
   total_price <- FIXED_CHARGE * 4
   ft3_used = water_used * CUBIC_FEET_PER_LITER
@@ -256,7 +260,72 @@ find_H2O_price <- function(water_used)
         ft3_used_quarter <- ft3_used_quarter - T2_CUT_OFF
       }else
       {
+        total_price <- total_price + (ft3_used_quarter * T2_WATER_COST_FT3)
+        ft3_used_quarter <- 0
+      }
+      
+      if(ft3_used_quarter >= T3_CUT_OFF)
+      {
+        total_price <- total_price + (T3_CUT_OFF * T3_WATER_COST_FT3)
+        ft3_used_quarter <- ft3_used_quarter - T3_CUT_OFF
+      }else
+      {
+        total_price <- total_price + (ft3_used_quarter * T3_WATER_COST_FT3)
+        ft3_used_quarter <- 0
+      }
+      
+      if(ft3_used_quarter >= T4_CUT_OFF)
+      {
+        total_price <- total_price + (T4_CUT_OFF * T4_WATER_COST_FT3)
+        ft3_used_quarter <- ft3_used_quarter - T4_CUT_OFF
+      }else{
+        total_price <- total_price + (ft3_used_quarter * T4_WATER_COST_FT3)
+        ft3_used_quarter <- 0
+      }
+      
+      if(ft3_used_quarter > 0)
+      {
+        total_price <- total_price + (ft3_used_quarter * T5_WATER_COST_FT3)
+        ft3_used_quarter <- 0
+      }
+      
+
+  }
+  
+  sewage_cost = discarge_per_liter * (water_used * CUBIC_FEET_PER_LITER) * SEWAGE_RATE
+  
+  total_price <- total_price + sewage_cost
+  
+  return(total_price)
+}
+  
+find_H2O_price <- function(water_used)
+  {
+    total_price <- FIXED_CHARGE * 4
+    ft3_used = water_used * CUBIC_FEET_PER_LITER
+    
+    
+    #Finds the water cost by filling each bracket until all water is accounted for
+    for (i in 1:4)
+    {
+      ft3_used_quarter <- ft3_used / 4
+      if(ft3_used_quarter >= T1_CUT_OFF)
+      {
+        total_price <- total_price + (T1_CUT_OFF * T1_WATER_COST_FT3)
+        ft3_used_quarter <- ft3_used_quarter - T1_CUT_OFF
+      }else
+      {
+        total_price <- total_price + (ft3_used_quarter * T1_WATER_COST_FT3)
+        ft3_used = 0
+      }
+      
+      if(ft3_used_quarter >= T2_CUT_OFF)
+      {
         total_price <- total_price + (T2_CUT_OFF * T2_WATER_COST_FT3)
+        ft3_used_quarter <- ft3_used_quarter - T2_CUT_OFF
+      }else
+      {
+        total_price <- total_price + (ft3_used_quarter * T2_WATER_COST_FT3)
         ft3_used_quarter <- 0
       }
       
@@ -266,13 +335,15 @@ find_H2O_price <- function(water_used)
         ft3_used_quarter <- 0
       }
     }
+    
+    sewage_cost = discarge_per_liter * (water_used * CUBIC_FEET_PER_LITER) * SEWAGE_RATE
+    
+    total_price <- total_price + sewage_cost
+    
+    return(total_price)
+    
+  }
   
-  sewage_cost = discarge_per_liter * (water_used * CUBIC_FEET_PER_LITER) * SEWAGE_RATE
-  
-  total_price <- total_price + sewage_cost
-  
-  return(total_price)
-}
 
 #Find heat produced at full uptime (BTU)
 naive_tot_heat <- find_total_heat(total_servers, rate_dist, NAIVE_CAP_DIST, kw_per_server)
@@ -322,6 +393,7 @@ upgrade_tot_water_price
 rack_counts <- c()
 energy_used <- c()
 energy_price <- c()
+total_price <- c()
 
 
 #Example of including random data in a graph
@@ -333,72 +405,129 @@ max_energy_percent <- 0.9
 min_energy_percent <- 0.5
 energy_percent_std <- 0.05
 
-max_addition <- 750
-unit_step <- 450
+max_addition <- 650
+unit_step <- 475
 
 
 
-replicates <- 3
+replicates <- 50
 
 set.seed(Sys.time())
 #Each value of racks (in our choose range) will be measured alongside its power input
 #a number of times equal to the replicates number
-for(i in 1:replicates)
+#for(i in 1:replicates)
+#{
+#  for (j in 1:max_addition)
+#  {
+#    index <- j + (max_addition * (i - 1))
+#    
+#    rack_counts[index] <- rackcount + (unit_step * (j - 1))
+#    server_counts <- rack_counts[index] * SERVERS_PER_RACK
+#    
+#    energy_used_day <- find_total_elec(PUE, server_counts, rate_dist, charge_dist, NAIVE_CAP_DIST, KW_PER_SERVER)[1] / DAYS_IN_YEAR
+#    energy_price_day <- find_total_elec(PUE, server_counts, rate_dist, charge_dist, NAIVE_CAP_DIST, KW_PER_SERVER)[2] / DAYS_IN_YEAR
+#    heat_produced_day <- find_total_heat(server_counts, rate_dist, NAIVE_CAP_DIST, kw_per_server) / DAYS_IN_YEAR
+#    energy_used[index] <- 0
+#    energy_price[index] <- 0
+#    heat_produced <- 0
+#    
+#    #Capacity should change with day, even if final number is annual
+#    for(h in 1:365)
+#    {
+#      random_cap <- rnorm(1, ((max_energy_percent + min_energy_percent) * 0.5), energy_percent_std)
+#      
+#      energy_used_day <- energy_used_day * random_cap
+#      energy_price_day <- energy_price_day * random_cap
+#      heat_produced_day <- heat_produced_day * random_cap
+#      
+#      energy_used[index] <- energy_used[index] + energy_used_day
+#      energy_price[index] <- energy_price[index] + energy_price_day
+#      heat_produced <- heat_produced + heat_produced_day
+#      
+#      energy_used_day <- find_total_elec(PUE, server_counts, rate_dist, charge_dist, NAIVE_CAP_DIST, KW_PER_SERVER)[1] / DAYS_IN_YEAR
+#      energy_price_day <- find_total_elec(PUE, server_counts, rate_dist, charge_dist, NAIVE_CAP_DIST, KW_PER_SERVER)[2] / DAYS_IN_YEAR
+#      heat_produced_day <- find_total_heat(server_counts, rate_dist, NAIVE_CAP_DIST, kw_per_server) / DAYS_IN_YEAR
+#    }
+#    
+#    
+#    #Accounts for leap years
+#    energy_used_day <- energy_used_day * rnorm(1, ((max_energy_percent + min_energy_percent) * 0.5), energy_percent_std)
+#    energy_used[index] <- energy_used[index] + (energy_used_day / 4)
+#    
+#    heat_produced_day <- heat_produced_day * random_cap
+#    heat_produced <- heat_produced + (heat_produced_day / 4)
+#    
+#    energy_price_day <- energy_price_day * rnorm(1, ((max_energy_percent + min_energy_percent) * 0.5), energy_percent_std)
+#    energy_price[index] <- energy_price[index] + (energy_price_day / 4)
+#    
+#    water_needed <- find_H2O_needed(heat_produced, replace_need_ratio, Mj_per_liter)
+#    total_water_price <- find_H2O_price_hyp(water_needed)
+#    
+#    total_price[index] <- energy_price[index] + total_water_price
+#
+#    
+#    #Gets number of racks in terms of 100,000 units
+#    rack_counts[index] <- rack_counts[index] / rackcount
+#    
+#    #Gets energy in terms of 1 million kWh
+#    energy_used[index] <- energy_used[index] / 1000000
+#    
+#    #Gets price in terms of 100,000 dollars
+#    energy_price[index] <- energy_price[index] / 100000
+#    
+#    total_price[index] <- total_price[index] / 1000000
+#  }
+#}
+#energy_vs_rack_count <- data.frame(rack_counts, energy_used)
+#energy_price_vs_rack_count <- data.frame(rack_counts, energy_price)
+#tot_price_vs_rack_count <- data.frame(rack_counts, total_price)
+
+
+#energy_vs_rack_count
+
+#ggplot(energy_vs_rack_count, aes(x = rack_counts, y = energy_used)) + geom_point(size = 0.1) + geom_smooth(formula = y ~ x, method = "lm") +
+#  labs(x = "Rack Count (in 100,000 Units)", y = "Energy Used in one million kWh") + coord_cartesian(xlim = c(1, 4), ylim = c(100, 850)) +
+#  stat_cor(label.x = 1, label.y = 430,) + stat_regline_equation(label.x = 1)
+
+#ggplot(energy_price_vs_rack_count, aes(x = rack_counts, y = energy_price)) + geom_point(size = 0.2) + geom_smooth(formula = y ~ x, method = "lm" ) +
+#  labs(x = "Rack Count (in 100,000 Units)", y = "Price in $1,000,000") + stat_cor(label.x = 1, label.y = 430,) + stat_regline_equation(label.x = 1, label.y = 480)
+
+#ggplot(tot_price_vs_rack_count, aes(x = rack_counts, y = total_price)) + geom_point(size = 0.5, color = "red") + geom_smooth(formula = y ~ x, method = "lm") +
+#  labs(x = "Rack Count (in 100,000 Units)", y = "Price in One Million Dollars") + coord_cartesian(xlim = c(1, 4), ylim = c(800, 4000)) +
+#  stat_cor(label.x = 1, label.y = 3780,) + stat_regline_equation(label.x = 1, label.y = 3940)
+
+
+x_water_used <- c()
+y_water_price <- c()
+y_hyp_water_price <- c()
+
+
+water_used_unit <- 400000000
+water_used_max <- (naive_tot_water) + (0.25 * naive_tot_water)
+current_x <- 0
+for(i in 1:(water_used_max / water_used_unit))
 {
-  for (j in 1:max_addition)
-  {
-    index <- j + (max_addition * (i - 1))
-    
-    rack_counts[index] <- rackcount + (unit_step * (j - 1))
-    server_counts <- rack_counts[index] * SERVERS_PER_RACK
-    
-    energy_used_day <- find_total_elec(PUE, server_counts, rate_dist, charge_dist, NAIVE_CAP_DIST, KW_PER_SERVER)[1] / DAYS_IN_YEAR
-    energy_price_day <- find_total_elec(PUE, server_counts, rate_dist, charge_dist, NAIVE_CAP_DIST, KW_PER_SERVER)[2] / DAYS_IN_YEAR
-    energy_used[index] <- 0
-    energy_price[index] <- 0
-    
-    #Capacity should change with day, even if final number is annual
-    for(h in 1:365)
-    {
-      energy_used_day <- energy_used_day * rnorm(1, ((max_energy_percent + min_energy_percent) * 0.5), energy_percent_std)
-      energy_price_day <- energy_price_day * rnorm(1, ((max_energy_percent + min_energy_percent) * 0.5), energy_percent_std)
-      energy_used[index] <- energy_used[index] + energy_used_day
-      energy_price[index] <- energy_price[index] + energy_price_day
-    }
-    
-    #Accounts for leap years
-    energy_used_day <- energy_used_day * rnorm(1, ((max_energy_percent + min_energy_percent) * 0.5), energy_percent_std)
-    energy_used[index] <- energy_used[index] + (energy_used_day / 4)
-    
-    energy_price_day <- energy_price_day * rnorm(1, ((max_energy_percent + min_energy_percent) * 0.5), energy_percent_std)
-    energy_price[index] <- energy_price[index] + (energy_price_day / 4)
-    
-    #Gets number of racks in terms of 100,000 units
-    rack_counts[index] <- rack_counts[index] / rackcount
-    
-    #Gets energy in terms of 1 million kWh
-    energy_used[index] <- energy_used[index] / 1000000
-    
-    #Gets price in terms of 100,000 dollars
-    energy_price[index] <- energy_price[index] / 100000
-  }
-}
-energy_vs_rack_count <- data.frame(rack_counts, energy_used)
-energy_price_vs_rack_count <- data.frame(rack_counts, energy_price)
-
-
-energy_vs_rack_count
-
-ggplot(energy_vs_rack_count, aes(x = rack_counts, y = energy_used)) + geom_point(size = 0.1) + geom_smooth(formula = y ~ x, method = "lm") +
-  labs(x = "Rack Count (in 100,000 Units)", y = "Energy Used in one million kWh") + coord_cartesian(xlim = c(1, 4), ylim = c(100, 850)) +
-  stat_cor(label.x = 1, label.y = 430,) + stat_regline_equation(label.x = 1, label.y = 480)
-
-ggplot(energy_price_vs_rack_count, aes(x = rack_counts, y = energy_price)) + geom_point(size = 0.2) + geom_smooth(formula = y ~ x, method = "lm" ) +
-  labs(x = "Rack Count (in 100,000 Units)", y = "Price in $100,000") + stat_cor(label.x = 1, label.y = 430,) + stat_regline_equation(label.x = 1, label.y = 480)
-
-#survfit <- lm(Cost~Electrical use, data = dataframe) 
-
+  x_water_used[i] <- current_x
+  y_water_price[i] <- find_H2O_price(x_water_used[i])
+  y_hyp_water_price[i] <- find_H2O_price_hyp(x_water_used[i])
+  x_water_used[i] <- x_water_used[i] / 10000000000
+  y_water_price[i] <- y_water_price[i] / 1000000
+  y_hyp_water_price[i] <- y_hyp_water_price[i] / 1000000
   
+  current_x <- current_x + water_used_unit
+}
+
+
+water_price_vs_use <- data.frame(x_water_used, y_water_price, y_hyp_water_price)
+
+
+ggplot(water_price_vs_use, aes(x = x_water_used)) + labs(x = "Water used in 10 billion liters", y = "Price in $1,000,000") +
+geom_point(aes(y = y_water_price), color = "green", size = 0.3) +  stat_cor(aes(y = y_water_price), label.x = 0, label.y = 130, color = "green") +
+stat_regline_equation(aes(y = y_water_price), label.x = 0, label.y = 140, color = "green") +
+geom_point(aes(y = y_hyp_water_price), color = "blue", size = 0.3) + stat_cor(aes(y = y_hyp_water_price), label.x = 0, label.y = 100, color = "blue") +
+stat_regline_equation(aes(y = y_hyp_water_price), label.x = 0, label.y = 110, color = "blue") +
+geom_vline(xintercept = (naive_tot_water / 10000000000))
+
 #Total power for 400,000 racks
 max_tot_elec <- find_total_elec(PUE, 4 * total_servers, rate_dist, charge_dist, NAIVE_CAP_DIST, kw_per_server)
 max_tot_elec
@@ -418,3 +547,7 @@ max_tot_water
 #Total water price used for 400,000 racks
 max_tot_water_price <- find_H2O_price(max_tot_water)
 max_tot_water_price
+
+#Total naive water price
+find_H2O_price(naive_tot_water)
+find_H2O_price_hyp(naive_tot_water)
